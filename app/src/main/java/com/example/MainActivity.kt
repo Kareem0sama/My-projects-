@@ -1148,14 +1148,14 @@ fun BikeCard(bike: BikeProfileEntity, viewModel: TroosViewModel) {
                     Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
                         Column(modifier = Modifier.padding(8.dp)) {
                             Text("تيل فرامل (أصلي)", color = ThemeTextWhite, fontSize = 10.sp)
-                            LinearProgressIndicator(progress = { 0.7f }, color = ThemePrimaryRed, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                            LinearProgressIndicator(progress = 0.7f, color = ThemePrimaryRed, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
                             Text("يلزم المراجعة بعد 1,200 كم", color = ThemeTextGray, fontSize = 9.sp)
                         }
                     }
                     Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
                         Column(modifier = Modifier.padding(8.dp)) {
                             Text("زيت محرك 10W40", color = ThemeTextWhite, fontSize = 10.sp)
-                            LinearProgressIndicator(progress = { 0.2f }, color = ThemeAccentGold, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                            LinearProgressIndicator(progress = 0.2f, color = ThemeAccentGold, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
                             Text("يجب التغيير فوراً", color = ThemeAccentGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                     }
