@@ -1,0 +1,318 @@
+================================================================================
+ملف الكود المصدري للباك اند وقاعدة البيانات والخدمات (TROOS BACKEND & SERVICE LAYERS)
+================================================================================
+
+هذا الملف يحتوي على الأكواد الكاملة لمنطق البنية البرمجية الخلفية لتروس (TROOS)، وتتضمن الـ Services والربط مع الذكاء الاصطناعي وإعدادات تخزين البيانات وحفظها محلياً:
+
+جدول المحتويات:
+1. com/example/data/Database.kt (إعداد وكيانات قاعدة وحلقات الوصل لـ Room Database والـ Entities والـ DAOs)
+2. com/example/data/GeminiService.kt (الربط المتطور الفوري بنموذج Google Gemini للذكاء الاصطناعي وعمليات الفحص والتحليل الصوري)
+
+--------------------------------------------------------------------------------
+1. com/example/data/Database.kt
+--------------------------------------------------------------------------------
+package com.example.data
+
+import android.content.Context
+import androidx.room.Dao
+import androidx.room.Database
+import androidx.room.Entity
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.PrimaryKey
+import androidx.room.Query
+import androidx.room.Room
+import androidx.room.RoomDatabase
+import kotlinx.coroutines.flow.Flow
+
+// 1. Product Entity
+@Entity(tableName = "products")
+data class ProductEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val arabicName: String,
+    val category: String,
+    val price: Double,
+    val oldPrice: Double? = null,
+    val imageUrl: String,
+    val brand: String,
+    val model: String,
+    val year: Int,
+    val description: String,
+    val stock: Int,
+    val isB2B: Boolean = false,
+    val isOffer: Boolean = false
+)
+
+// 2. Cart Item Entity
+@Entity(tableName = "cart_items")
+data class CartItemEntity(
+    @PrimaryKey val productId: Int,
+    val quantity: Int
+)
+
+// 3. Bike Profile Entity (Garage)
+@Entity(tableName = "bike_profiles")
+data class BikeProfileEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val brand: String,
+    val model: String,
+    val year: Int,
+    val odometer: Int,
+    val lastServiceDate: String,
+    val notes: String = ""
+)
+
+// 4. Maintenance Event Entity
+@Entity(tableName = "maintenance_events")
+data class MaintenanceEventEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val bikeId: Int,
+    val title: String,
+    val dueDate: String,
+    val isCompleted: Boolean = false
+)
+
+// 5. Community Post Entity
+@Entity(tableName = "community_posts")
+data class CommunityPostEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val author: String,
+    val avatar: String,
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val likesCount: Int = 0,
+    val commentsCount: Int = 0
+)
+
+// 6. Order Entity
+@Entity(tableName = "orders")
+data class OrderEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val orderDate: String,
+    val itemsCount: Int,
+    val totalPrice: Double,
+    val status: String
+)
+
+// DAOs
+@Dao
+interface TroosDao {
+    // Products
+    @Query("SELECT * FROM products ORDER BY id DESC")
+    fun getAllProducts(): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE brand = :brand AND model = :model AND year = :year")
+    fun getCompatibleProducts(brand: String, model: String, year: Int): Flow<List<ProductEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertProducts(products: List<ProductEntity>)
+
+    @Query("DELETE FROM products")
+    suspend fun clearProducts()
+
+    // Cart
+    @Query("SELECT * FROM cart_items")
+    fun getCartItems(): Flow<List<CartItemEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCartItem(item: CartItemEntity)
+
+    @Query("DELETE FROM cart_items WHERE productId = :productId")
+    suspend fun deleteCartItem(productId: Int)
+
+    @Query("DELETE FROM cart_items")
+    suspend fun clearCart()
+
+    // Bike Profiles
+    @Query("SELECT * FROM bike_profiles ORDER BY id DESC")
+    fun getMyBikes(): Flow<List<BikeProfileEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBike(bike: BikeProfileEntity): Long
+
+    @Query("DELETE FROM bike_profiles WHERE id = :id")
+    suspend fun deleteBike(id: Int)
+
+    // Maintenance Events
+    @Query("SELECT * FROM maintenance_events WHERE bikeId = :bikeId ORDER BY id DESC")
+    fun getMaintenanceEvents(bikeId: Int): Flow<List<MaintenanceEventEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMaintenanceEvent(event: MaintenanceEventEntity)
+
+    // Community Posts
+    @Query("SELECT * FROM community_posts ORDER BY timestamp DESC")
+    fun getCommunityPosts(): Flow<List<CommunityPostEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPost(post: CommunityPostEntity)
+
+    // Orders
+    @Query("SELECT * FROM orders ORDER BY id DESC")
+    fun getOrders(): Flow<List<OrderEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertOrder(order: OrderEntity)
+}
+
+@Database(
+    entities = [
+        ProductEntity::class,
+        CartItemEntity::class,
+        BikeProfileEntity::class,
+        MaintenanceEventEntity::class,
+        CommunityPostEntity::class,
+        OrderEntity::class
+    ],
+    version = 1,
+    exportSchema = false
+)
+abstract class TroosDatabase : RoomDatabase() {
+    abstract fun dao(): TroosDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: TroosDatabase? = null
+
+        fun getDatabase(context: Context): TroosDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    TroosDatabase::class.java,
+                    "troos_database"
+                )
+                .fallbackToDestructiveMigration()
+                .build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+}
+
+
+--------------------------------------------------------------------------------
+2. com/example/data/GeminiService.kt
+--------------------------------------------------------------------------------
+package com.example.data
+
+import com.example.BuildConfig
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.POST
+import retrofit2.http.Query
+import java.util.concurrent.TimeUnit
+
+@JsonClass(generateAdapter = true)
+data class Content(
+    @Json(name = "parts") val parts: List<Part>
+)
+
+@JsonClass(generateAdapter = true)
+data class Part(
+    @Json(name = "text") val text: String? = null,
+    @Json(name = "inlineData") val inlineData: InlineData? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class InlineData(
+    @Json(name = "mimeType") val mimeType: String,
+    @Json(name = "data") val data: String
+)
+
+@JsonClass(generateAdapter = true)
+data class GenerateContentRequest(
+    @Json(name = "contents") val contents: List<Content>,
+    @Json(name = "systemInstruction") val systemInstruction: Content? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class GenerateContentResponse(
+    @Json(name = "candidates") val candidates: List<Candidate>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class Candidate(
+    @Json(name = "content") val content: Content? = null
+)
+
+interface GeminiApiService {
+    @POST("v1beta/models/gemini-3.5-flash:generateContent")
+    suspend fun generateContent(
+        @Query("key") apiKey: String,
+        @Body request: GenerateContentRequest
+    ): GenerateContentResponse
+}
+
+object RetrofitClient {
+    private const val BASE_URL = "https://generativelanguage.googleapis.com/"
+
+    private val moshi = Moshi.Builder()
+        .addLast(KotlinJsonAdapterFactory())
+        .build()
+
+    private val okHttpClient = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .build()
+
+    val service: GeminiApiService by lazy {
+        Retrofit.Builder()
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(GeminiApiService::class.java)
+    }
+}
+
+class GeminiRepository {
+    suspend fun getGeminiResponse(prompt: String, systemInstruction: String? = null): String {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+            return "عذراً، لم يتم ضبط مفتاح AI Studio API Key بشكل صحيح في الإعدادات. يرجى تزويد التطبيق بالمفتاح عبر لوحة الأسرار (Secrets)."
+        }
+
+        val contents = listOf(Content(parts = listOf(Part(text = prompt))))
+        val instruction = systemInstruction?.let { Content(parts = listOf(Part(text = it))) }
+        val request = GenerateContentRequest(contents = contents, systemInstruction = instruction)
+
+        return try {
+            val response = RetrofitClient.service.generateContent(apiKey, request)
+            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text 
+                ?: "خطأ: لم يتم تلقي رد صحيح من الذكاء الاصطناعي."
+        } catch (e: Exception) {
+            "فشل الاتصال بمحرك الذكاء الاصطناعي: ${e.localizedMessage ?: e.message}"
+        }
+    }
+
+    suspend fun analyzePhoto(prompt: String, base64Image: String): String {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+            return "عذراً، لم يتم ضبط مفتاح AI Studio API Key بشكل صحيح في الإعدادات. يرجى تزويد التطبيق بالمفتاح عبر لوحة الأسرار (Secrets)."
+        }
+
+        val parts = listOf(
+            Part(text = prompt),
+            Part(inlineData = InlineData(mimeType = "image/jpeg", data = base64Image))
+        )
+        val contents = listOf(Content(parts = parts))
+        val request = GenerateContentRequest(contents = contents)
+
+        return try {
+            val response = RetrofitClient.service.generateContent(apiKey, request)
+            response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text 
+                ?: "لم نتمكن من تحليل تلك الصورة، يرجى المحاولة بصورة أوضح."
+        } catch (e: Exception) {
+            "خطأ أثناء معالجة الصورة بالذكاء الاصطناعي: ${e.localizedMessage ?: e.message}"
+        }
+    }
+}

@@ -1,0 +1,2218 @@
+================================================================================
+ملف الكود المصدري للفرونت اند والواجهات والمشاهد (TROOS MOBILE FRONTEND & UI LAYERS)
+================================================================================
+
+هذا الملف يحتوي على الأكواد الكاملة لواجهات وتصميم وهيكلية تطبيق تروس (TROOS)، وتتضمن شاشات العرض والـ ViewModel ومنسق الألوان والخطوط والسمات العامة للتطبيق:
+
+جدول المحتويات:
+1. com/example/MainActivity.kt (شاشات المتجر، والتشخيص الذاتي، والجراج الشخصي، والمجتمع التفاعلي، والخدمات، ودراسة الجدوى الفنية، وإدارة المحتوى)
+2. com/example/ui/TroosViewModel.kt (متحكم الحالة والوسيط البرمجي بين قاعدة البيانات وخدمات AI والواجهات)
+3. com/example/ui/theme/Color.kt (الألوان الخاصة بالثيم الافتراضي للهاتف)
+4. com/example/ui/theme/Theme.kt (هيكل وتهيئة الثيم Material 3)
+5. com/example/ui/theme/Type.kt (تسميات عائلة الخطوط وأوزان النصوص)
+6. res/values/strings.xml (ملف النصوص وقيم السلاسل النصية)
+
+--------------------------------------------------------------------------------
+1. com/example/MainActivity.kt
+--------------------------------------------------------------------------------
+package com.example
+
+import android.os.Bundle
+import android.util.Base64
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import com.example.data.BikeProfileEntity
+import com.example.data.ProductEntity
+import com.example.ui.TroosViewModel
+import com.example.ui.theme.MyApplicationTheme
+
+// Premium Dark Theme Colors
+val ThemeBackground = Color(0xFF0C0C0F)
+val ThemeSurface = Color(0xFF141419)
+val ThemeCard = Color(0xFF1B1B22)
+val ThemePrimaryRed = Color(0xFFFF3B30)
+val ThemeAccentGold = Color(0xFFFFCC00)
+val ThemeIceBlue = Color(0xFF00E5FF)
+val ThemeTextWhite = Color(0xFFF7F7FA)
+val ThemeTextGray = Color(0xFF9E9EAF)
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            MyApplicationTheme {
+                MainContainer()
+            }
+        }
+    }
+}
+
+// Global active screens
+enum class ActiveScreen {
+    STORE,
+    AI_DIAGNOSTICS,
+    MY_GARAGE,
+    COMMUNITY,
+    EXTRA_SERVICES,
+    PITCH_DECK,
+    ADMIN_PANEL
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainContainer() {
+    val viewModel: TroosViewModel = viewModel()
+    val context = LocalContext.current
+
+    var currentScreen by remember { mutableStateOf(ActiveScreen.STORE) }
+    var selectedTabInPitchDeck by remember { mutableStateOf(0) }
+    var showCartDialog by remember { mutableStateOf(false) }
+
+    val cartItems by viewModel.cartItems.collectAsState()
+    val isB2BMode by viewModel.isB2BMode.collectAsState()
+
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(ThemeBackground),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(ThemePrimaryRed),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Troos Logo",
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Text(
+                            text = "تروس • TROOS",
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.SansSerif,
+                            fontSize = 20.sp,
+                            color = ThemeTextWhite,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                },
+                actions = {
+                    // B2B Workspace Toggle
+                    Card(
+                        onClick = {
+                            viewModel.toggleB2BMode()
+                            val msg = if (!isB2BMode) "تم تفعيل أسعار الجملة والخصومات الخاصة بالورش والميكانيكية (15% خصم)" else "تم العودة لأسعار الأفراد"
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isB2BMode) ThemePrimaryRed.copy(alpha = 0.2f) else ThemeCard
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isB2BMode) ThemePrimaryRed else ThemeTextGray.copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isB2BMode) ThemePrimaryRed else ThemeTextGray)
+                            )
+                            Text(
+                                text = if (isB2BMode) "حساب ورش B2B نشط" else "أفراد • ميكانيكي؟",
+                                color = if (isB2BMode) ThemePrimaryRed else ThemeTextWhite,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Shopping Cart
+                    BadgedBox(
+                        badge = {
+                            if (cartItems.isNotEmpty()) {
+                                Badge(
+                                    containerColor = ThemePrimaryRed,
+                                    contentColor = Color.White
+                                ) {
+                                    Text(
+                                        text = cartItems.sumOf { it.quantity }.toString(),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .testTag("submit_button")
+                    ) {
+                        IconButton(onClick = { showCartDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = "السلة",
+                                tint = ThemeTextWhite
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = ThemeBackground,
+                    titleContentColor = ThemeTextWhite
+                )
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = ThemeSurface,
+                tonalElevation = 8.dp,
+                modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)
+            ) {
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.STORE,
+                    onClick = { currentScreen = ActiveScreen.STORE },
+                    icon = { Icon(Icons.Default.Home, contentDescription = "متجر") },
+                    label = { Text("المتجر", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemePrimaryRed,
+                        selectedTextColor = ThemePrimaryRed,
+                        indicatorColor = ThemePrimaryRed.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.AI_DIAGNOSTICS,
+                    onClick = { currentScreen = ActiveScreen.AI_DIAGNOSTICS },
+                    icon = { Icon(Icons.Default.Star, contentDescription = "AI فحص") },
+                    label = { Text("فحص AI", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemeIceBlue,
+                        selectedTextColor = ThemeIceBlue,
+                        indicatorColor = ThemeIceBlue.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.MY_GARAGE,
+                    onClick = { currentScreen = ActiveScreen.MY_GARAGE },
+                    icon = { Icon(Icons.Default.Build, contentDescription = "جراجي") },
+                    label = { Text("جراجي", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemeAccentGold,
+                        selectedTextColor = ThemeAccentGold,
+                        indicatorColor = ThemeAccentGold.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.COMMUNITY,
+                    onClick = { currentScreen = ActiveScreen.COMMUNITY },
+                    icon = { Icon(Icons.Default.Email, contentDescription = "مجتمع") },
+                    label = { Text("المجتمع", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemePrimaryRed,
+                        selectedTextColor = ThemePrimaryRed,
+                        indicatorColor = ThemePrimaryRed.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.EXTRA_SERVICES,
+                    onClick = { currentScreen = ActiveScreen.EXTRA_SERVICES },
+                    icon = { Icon(Icons.Default.Place, contentDescription = "خدمات") },
+                    label = { Text("الخدمات", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemePrimaryRed,
+                        selectedTextColor = ThemePrimaryRed,
+                        indicatorColor = ThemePrimaryRed.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.PITCH_DECK,
+                    onClick = { currentScreen = ActiveScreen.PITCH_DECK },
+                    icon = { Icon(Icons.Default.Info, contentDescription = "خطة") },
+                    label = { Text("دراسة الجدوى", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemePrimaryRed,
+                        selectedTextColor = ThemePrimaryRed,
+                        indicatorColor = ThemePrimaryRed.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+
+                NavigationBarItem(
+                    selected = currentScreen == ActiveScreen.ADMIN_PANEL,
+                    onClick = { currentScreen = ActiveScreen.ADMIN_PANEL },
+                    icon = { Icon(Icons.Default.Lock, contentDescription = "إدارة") },
+                    label = { Text("المدير", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ThemePrimaryRed,
+                        selectedTextColor = ThemePrimaryRed,
+                        indicatorColor = ThemePrimaryRed.copy(alpha = 0.15f),
+                        unselectedIconColor = ThemeTextGray,
+                        unselectedTextColor = ThemeTextGray
+                    )
+                )
+            }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(ThemeBackground)
+        ) {
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.STORE,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                StoreScreen(viewModel)
+            }
+
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.AI_DIAGNOSTICS,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                AiDiagnosticsScreen(viewModel)
+            }
+
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.MY_GARAGE,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                GarageScreen(viewModel)
+            }
+
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.COMMUNITY,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                CommunityScreen(viewModel)
+            }
+
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.EXTRA_SERVICES,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                ExtraServicesScreen(viewModel)
+            }
+
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.PITCH_DECK,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                PitchDeckScreen(selectedTabInPitchDeck) { idx -> selectedTabInPitchDeck = idx }
+            }
+
+            AnimatedVisibility(
+                visible = currentScreen == ActiveScreen.ADMIN_PANEL,
+                enter = fadeIn(animationSpec = tween(150)),
+                exit = fadeOut(animationSpec = tween(150))
+            ) {
+                AdminPanelScreen(viewModel)
+            }
+        }
+    }
+
+    if (showCartDialog) {
+        CartOverlayDialog(
+            viewModel = viewModel,
+            onDismiss = { showCartDialog = false }
+        )
+    }
+}
+
+// ----------------- 1. STORE SCREEN -----------------
+@Composable
+fun StoreScreen(viewModel: TroosViewModel) {
+    val selectedBrand by viewModel.selectedBrand.collectAsState()
+    val selectedModel by viewModel.selectedModel.collectAsState()
+    val selectedYear by viewModel.selectedYear.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val filteredProducts by viewModel.filteredProducts.collectAsState()
+    val isB2BMode by viewModel.isB2BMode.collectAsState()
+
+    val context = LocalContext.current
+
+    val bikeBrands = listOf("Honda", "Yamaha", "Bajaj", "Keeway", "Vespa")
+    val bikeModels = when (selectedBrand) {
+        "Honda" -> listOf("CBR 150", "CB Hornet")
+        "Yamaha" -> listOf("R6", "Fazer 250")
+        "Bajaj" -> listOf("Pulsar 200", "Discover 125")
+        "Keeway" -> listOf("Superlight", "V-Cruise")
+        "Vespa" -> listOf("Primavera 150", "GTV 300")
+        else -> emptyList()
+    }
+    val bikeYears = listOf(2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018)
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = ThemeCard)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .drawBehind {
+                            drawCircle(
+                                color = ThemePrimaryRed.copy(alpha = 0.05f),
+                                radius = 240f,
+                                center = Offset(size.width - 50f, 60f)
+                            )
+                        }
+                ) {
+                    Text(
+                        text = "محرك التوافق الذكي • Compatibility Engine",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = ThemePrimaryRed
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "اختر ماركة وموديل موتوسيكلك لعرض قطع الغيار المتطابقة والآمنة 100% فقط:",
+                        color = ThemeTextWhite,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Brand Selection
+                        Box(modifier = Modifier.weight(1f)) {
+                            var expandedBrand by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = { expandedBrand = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = ThemeSurface),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, ThemePrimaryRed.copy(alpha = 0.3f)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().height(44.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = selectedBrand.ifEmpty { "الماركة" },
+                                        color = ThemeTextWhite,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        tint = ThemePrimaryRed,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = expandedBrand,
+                                onDismissRequest = { expandedBrand = false },
+                                modifier = Modifier.background(ThemeCard)
+                            ) {
+                                bikeBrands.forEach { brand ->
+                                    DropdownMenuItem(
+                                        text = { Text(brand, color = ThemeTextWhite) },
+                                        onClick = {
+                                            viewModel.setFilterBrand(brand)
+                                            expandedBrand = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Model Selection
+                        Box(modifier = Modifier.weight(1f)) {
+                            var expandedModel by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = { expandedModel = true },
+                                enabled = selectedBrand.isNotEmpty(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ThemeSurface,
+                                    disabledContainerColor = ThemeSurface.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, ThemePrimaryRed.copy(alpha = 0.15f)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().height(44.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = selectedModel.ifEmpty { "الموديل" },
+                                        color = if (selectedBrand.isNotEmpty()) ThemeTextWhite else ThemeTextGray,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        tint = ThemePrimaryRed,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = expandedModel,
+                                onDismissRequest = { expandedModel = false },
+                                modifier = Modifier.background(ThemeCard)
+                            ) {
+                                bikeModels.forEach { model ->
+                                    DropdownMenuItem(
+                                        text = { Text(model, color = ThemeTextWhite) },
+                                        onClick = {
+                                            viewModel.setFilterModel(model)
+                                            expandedModel = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Year Selection
+                        Box(modifier = Modifier.weight(1f)) {
+                            var expandedYear by remember { mutableStateOf(false) }
+                            Button(
+                                onClick = { expandedYear = true },
+                                enabled = selectedModel.isNotEmpty(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ThemeSurface,
+                                    disabledContainerColor = ThemeSurface.copy(alpha = 0.5f)
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, ThemePrimaryRed.copy(alpha = 0.15f)),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.fillMaxWidth().height(44.dp)
+                            ) {
+                                Row(
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = selectedYear?.toString() ?: "السنة",
+                                        color = if (selectedModel.isNotEmpty()) ThemeTextWhite else ThemeTextGray,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        tint = ThemePrimaryRed,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                            DropdownMenu(
+                                expanded = expandedYear,
+                                onDismissRequest = { expandedYear = false },
+                                modifier = Modifier.background(ThemeCard)
+                            ) {
+                                bikeYears.forEach { yr ->
+                                    DropdownMenuItem(
+                                        text = { Text(yr.toString(), color = ThemeTextWhite) },
+                                        onClick = {
+                                            viewModel.setFilterYear(yr)
+                                            expandedYear = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (selectedBrand.isNotEmpty() || selectedModel.isNotEmpty() || selectedYear != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { viewModel.clearFilters() }) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Reset",
+                                    tint = ThemePrimaryRed,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("إلغاء التصفية", color = ThemePrimaryRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (selectedBrand.isNotEmpty() && selectedModel.isNotEmpty()) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = ThemePrimaryRed.copy(alpha = 0.11f)),
+                    border = BorderStroke(1.dp, ThemePrimaryRed.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            tint = ThemePrimaryRed,
+                            contentDescription = "تأكيد التوافق"
+                        )
+                        Text(
+                            text = "قطع غيار متوقعة بنسبة 100% مع: $selectedBrand • $selectedModel ${selectedYear?.let { "• $it" } ?: ""}",
+                            color = ThemeTextWhite,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            TextField(
+                value = searchQuery,
+                onValueChange = { viewModel.setQuery(it) },
+                placeholder = { Text("ابحث باسم القطعة أو التصنيف...", color = ThemeTextGray, fontSize = 13.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "بحث", tint = ThemePrimaryRed) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .testTag("username_input"),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = ThemeTextWhite,
+                    unfocusedTextColor = ThemeTextWhite,
+                    focusedContainerColor = ThemeCard,
+                    unfocusedContainerColor = ThemeCard,
+                    cursorColor = ThemePrimaryRed,
+                    focusedIndicatorColor = ThemePrimaryRed
+                ),
+                singleLine = true
+            )
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "كتالوج معتمد لقطع الغيار المتاحة (${filteredProducts.size})",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = ThemeTextWhite
+                )
+                if (isB2BMode) {
+                    Text(
+                        text = "خصم 15% للورش مفعّل",
+                        color = ThemeIceBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        if (filteredProducts.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 40.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "لا توجد نتائج تطابق تلك التصفية.",
+                            color = ThemeTextGray,
+                            fontSize = 13.sp,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { viewModel.clearFilters() },
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemePrimaryRed)
+                        ) {
+                            Text("عرض الكل", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        } else {
+            items(filteredProducts) { item ->
+                ProductRow(item, isB2BMode) {
+                    viewModel.addToCart(item.id)
+                    Toast.makeText(context, "تمت إضافة ${item.arabicName} للسلة!", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ProductRow(product: ProductEntity, isB2B: Boolean, onAdd: () -> Unit) {
+    val finalPrice = if (isB2B) product.price * 0.85 else product.price
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("task_item_card"),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = ThemeCard),
+        border = BorderStroke(1.dp, ThemeTextGray.copy(alpha = 0.15f))
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = product.imageUrl,
+                contentDescription = product.name,
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ThemeSurface),
+                contentScale = ContentScale.Crop
+            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(ThemePrimaryRed.copy(alpha = 0.15f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(text = product.category, color = ThemePrimaryRed, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = product.arabicName,
+                    color = ThemeTextWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "${String.format("%,.1f", finalPrice)} ج.م",
+                    color = if (isB2B) ThemeIceBlue else ThemePrimaryRed,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp
+                )
+
+                Text(
+                    text = "متطابق مع: ${product.brand} • ${product.model} (${product.year})",
+                    color = ThemeAccentGold,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            IconButton(
+                onClick = onAdd,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = ThemePrimaryRed,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier.size(38.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "شراء", modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+// ----------------- 2. AI DIAGNOSTICS & CHAT -----------------
+@Composable
+fun AiDiagnosticsScreen(viewModel: TroosViewModel) {
+    val aiChatHistory by viewModel.aiChatHistory.collectAsState()
+    val isAiLoading by viewModel.isAiLoading.collectAsState()
+    val aiDiagnosticResult by viewModel.aiDiagnosticResult.collectAsState()
+
+    var activeSubTab by remember { mutableStateOf(0) }
+    var chatInputText by remember { mutableStateOf("") }
+    var photoDescriptionText by remember { mutableStateOf("") }
+
+    val diagnosticScenarios = listOf(
+        Pair("تآكل شديد في تيل الفرامل", "MOTO1"),
+        Pair("تلف وتآكل أسنان الترس الخلفي", "MOTO2"),
+        Pair("شرخ في جسم المساعد الهيدروليكي", "MOTO3"),
+        Pair("ترسبات كثيفة على بوجيه الموتوسيكل", "MOTO4")
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = ThemeCard),
+            border = BorderStroke(1.dp, ThemeIceBlue.copy(alpha = 0.3f))
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(imageVector = Icons.Default.Star, tint = ThemeIceBlue, contentDescription = "Gemini AI")
+                    Column {
+                        Text("ميكانيكي تروس الذكي • Troos AI Engine", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ThemeIceBlue)
+                        Text("مدعوم بنموذج Google Gemini الفني المتطور", color = ThemeTextGray, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        TabRow(
+            selectedTabIndex = activeSubTab,
+            containerColor = ThemeSurface,
+            contentColor = ThemeIceBlue,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[activeSubTab]),
+                    color = ThemeIceBlue
+                )
+            }
+        ) {
+            Tab(selected = activeSubTab == 0, onClick = { activeSubTab = 0 }, text = { Text("مساعد صيانة شات", fontSize = 12.sp, fontWeight = FontWeight.Bold) })
+            Tab(selected = activeSubTab == 1, onClick = { activeSubTab = 1 }, text = { Text("فحص العيوب بالصور", fontSize = 12.sp, fontWeight = FontWeight.Bold) })
+        }
+
+        if (activeSubTab == 0) {
+            Box(modifier = Modifier.weight(1f)) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 60.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(aiChatHistory) { msg ->
+                        val isUser = msg.second
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isUser) ThemePrimaryRed else ThemeCard)
+                                    .padding(12.dp)
+                                    .widthIn(max = 280.dp)
+                            ) {
+                                Text(
+                                    text = msg.first,
+                                    color = ThemeTextWhite,
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                )
+                            }
+                        }
+                    }
+
+                    if (isAiLoading) {
+                        item {
+                            Text("جاري فحص الاستفسار بالذكاء الاصطناعي وترجمته فنيًا...", color = ThemeIceBlue, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TextField(
+                        value = chatInputText,
+                        onValueChange = { chatInputText = it },
+                        placeholder = { Text("اطرح استفسارك الميكانيكي...", color = ThemeTextGray, fontSize = 11.sp) },
+                        modifier = Modifier.weight(1f),
+                        colors = TextFieldDefaults.colors(focusedContainerColor = ThemeCard, unfocusedContainerColor = ThemeCard, focusedTextColor = ThemeTextWhite)
+                    )
+                    IconButton(
+                        onClick = {
+                            if (chatInputText.isNotBlank()) {
+                                viewModel.askAiMechanic(chatInputText)
+                                chatInputText = ""
+                            }
+                        },
+                        colors = IconButtonDefaults.iconButtonColors(containerColor = ThemeIceBlue)
+                    ) {
+                        Icon(Icons.Default.Send, contentDescription = "إرسال", tint = Color.Black)
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                item {
+                    Text("اختر تجربة محاكاة فحص صورة للكشف الفوري بالذكاء الاصطناعي:", color = ThemeTextWhite, fontSize = 13.sp)
+                }
+
+                item {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(diagnosticScenarios) { scenario ->
+                            Card(
+                                onClick = {
+                                    photoDescriptionText = "أرفقت صورة تبين: ${scenario.first}. بادر بتشخيصه فنياً واقتراح غيار ملائم."
+                                    val mockBytes = Base64.encodeToString("mock_bytes".toByteArray(), Base64.NO_WRAP)
+                                    viewModel.diagnosticPhotoUpload(photoDescriptionText, mockBytes)
+                                },
+                                colors = CardDefaults.cardColors(containerColor = ThemeCard),
+                                border = BorderStroke(1.dp, ThemeIceBlue.copy(alpha = 0.2f))
+                            ) {
+                                Text(
+                                    text = scenario.first,
+                                    color = ThemeTextWhite,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    TextField(
+                        value = photoDescriptionText,
+                        onValueChange = { photoDescriptionText = it },
+                        placeholder = { Text("اكتب وصف المشكلة وقم بالتحليل في لحظات...", color = ThemeTextGray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(focusedContainerColor = ThemeCard, unfocusedContainerColor = ThemeCard, focusedTextColor = ThemeTextWhite)
+                    )
+                }
+
+                item {
+                    Button(
+                        onClick = {
+                            if (photoDescriptionText.isNotBlank()) {
+                                val mockBytes = Base64.encodeToString("mock_bytes".toByteArray(), Base64.NO_WRAP)
+                                viewModel.diagnosticPhotoUpload(photoDescriptionText, mockBytes)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemeIceBlue, contentColor = Color.Black),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("إجراء الفحص البصري الفوري", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                if (isAiLoading) {
+                    item {
+                        CircularProgressIndicator(color = ThemeIceBlue)
+                    }
+                }
+
+                aiDiagnosticResult?.let { res ->
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = ThemeSurface),
+                            border = BorderStroke(1.dp, ThemeAccentGold.copy(alpha = 0.4f))
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("توجيه ميكانيكي تروس الذكي للحل والقطع المطلوبة:", color = ThemeAccentGold, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(text = res, color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------- 3. MY GARAGE -----------------
+@Composable
+fun GarageScreen(viewModel: TroosViewModel) {
+    val myBikes by viewModel.myBikes.collectAsState()
+    val context = LocalContext.current
+
+    var showForm by remember { mutableStateOf(false) }
+    var brand by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+    var odometer by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = ThemeCard)
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(imageVector = Icons.Default.Build, tint = ThemeAccentGold, contentDescription = "جراج")
+                    Column {
+                        Text("جراج الفحص وصيانة الدراجات بالذكاء الاصطناعي", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = ThemeAccentGold)
+                        Text("سجل الدراجة وراقب المنبهات لتفادي الأعطال المفاجئة لقاطعي المسافات بمصر", color = ThemeTextGray, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("الموتوسيكلات المسجلة بجراجك (${myBikes.size})", color = ThemeTextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Button(
+                    onClick = { showForm = !showForm },
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemeAccentGold, contentColor = Color.Black)
+                ) {
+                    Text(if (showForm) "إغلاق" else "أضف دراجة نارية", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        if (showForm) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = ThemeSurface),
+                    border = BorderStroke(1.dp, ThemeAccentGold.copy(alpha = 0.2f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TextField(value = brand, onValueChange = { brand = it }, placeholder = { Text("الماركة (Honda, Bajaj...)") }, modifier = Modifier.fillMaxWidth())
+                        TextField(value = model, onValueChange = { model = it }, placeholder = { Text("الموديل (Primavera, CBR...)") }, modifier = Modifier.fillMaxWidth())
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextField(value = year, onValueChange = { year = it }, placeholder = { Text("سنة الصنع") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                            TextField(value = odometer, onValueChange = { odometer = it }, placeholder = { Text("العداد (كم)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        }
+                        TextField(value = notes, onValueChange = { notes = it }, placeholder = { Text("أي عيوب أو خدمات حالية مطلوبة؟") }, modifier = Modifier.fillMaxWidth())
+
+                        Button(
+                            onClick = {
+                                if (brand.isNotBlank() && model.isNotBlank()) {
+                                    viewModel.addBikeToGarage(
+                                        brand = brand,
+                                        model = model,
+                                        year = year.toIntOrNull() ?: 2023,
+                                        odometer = odometer.toIntOrNull() ?: 5000,
+                                        lastService = "تم تفعيل التتبع اللامركزي التلقائي للزيت والسيور",
+                                        notes = notes
+                                    )
+                                    brand = ""
+                                    model = ""
+                                    year = ""
+                                    odometer = ""
+                                    notes = ""
+                                    showForm = false
+                                    Toast.makeText(context, "تم حفظ الدراجة بنجاح وتفعيل جدول دورة الصيانة الدقيقة!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemeAccentGold, contentColor = Color.Black),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("اعتماد الدراجة النارية الآن بماتريكس صيانة تروس", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        if (myBikes.isEmpty()) {
+            item {
+                Text("لا توجد دراجات مسجلة حاليًا بجراجك المخصص الصغير.", color = ThemeTextGray, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp))
+            }
+        } else {
+            items(myBikes) { bike ->
+                BikeCard(bike, viewModel)
+            }
+        }
+    }
+}
+
+@Composable
+fun BikeCard(bike: BikeProfileEntity, viewModel: TroosViewModel) {
+    var ex by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = ThemeCard)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text("${bike.brand} - ${bike.model}", fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 14.sp)
+                    Text("العداد: ${bike.odometer} كم • ${bike.year}", color = ThemeTextGray, fontSize = 11.sp)
+                }
+                IconButton(onClick = { ex = !ex }) {
+                    Icon(imageVector = if (ex) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = "المزيد", tint = ThemeAccentGold)
+                }
+            }
+
+            if (ex) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("منبهات الاستبدال الفوري التلقائية لخلايا تروس:", color = ThemeAccentGold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("تيل فرامل (أصلي)", color = ThemeTextWhite, fontSize = 10.sp)
+                            LinearProgressIndicator(progress = 0.7f, color = ThemePrimaryRed, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                            Text("يلزم المراجعة بعد 1,200 كم", color = ThemeTextGray, fontSize = 9.sp)
+                        }
+                    }
+                    Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("زيت محرك 10W40", color = ThemeTextWhite, fontSize = 10.sp)
+                            LinearProgressIndicator(progress = 0.2f, color = ThemeAccentGold, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+                            Text("يجب التغيير فوراً", color = ThemeAccentGold, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { viewModel.deleteBikeFromGarage(bike.id) }) {
+                        Text("إزالة الدراجة", color = ThemePrimaryRed, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------- 4. COMMUNITY -----------------
+@Composable
+fun CommunityScreen(viewModel: TroosViewModel) {
+    val posts by viewModel.communityPosts.collectAsState()
+    val context = LocalContext.current
+    var text by remember { mutableStateOf("") }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("مجتمع تروس الرقمي المفتوح • Troos Community", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                    Text("مجتمع فني تفاعلي للتبادل، ومراجعات قطع الغيار والموثوقة لأصحاب الدراجات النارية صغارًا وكبارًا بمصر.", color = ThemeTextGray, fontSize = 11.sp)
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        placeholder = { Text("اكتب استشارتك للمجتمع أو شارك تجربة قطعة غيار اشتريتها...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Button(
+                        onClick = {
+                            if (text.isNotBlank()) {
+                                viewModel.createCommunityPost("محمود الكينج كابتن النزهة", text)
+                                text = ""
+                                Toast.makeText(context, "تم النشر بنجاح على حائط تروس الفني النشط الموحد!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemePrimaryRed),
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text("انشر الآن", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        items(posts) { post ->
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard)) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(ThemePrimaryRed), contentAlignment = Alignment.Center) {
+                            Text(post.author.take(1), color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                        Column {
+                            Text(post.author, fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 12.sp)
+                            Text("منذ قليل", color = ThemeTextGray, fontSize = 9.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(text = post.content, color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 19.sp)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Favorite, contentDescription = null, tint = ThemePrimaryRed, modifier = Modifier.size(16.dp))
+                            Text("${post.likesCount}", color = ThemeTextGray, fontSize = 11.sp)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Icon(Icons.Default.Share, contentDescription = null, tint = ThemeTextGray, modifier = Modifier.size(16.dp))
+                            Text("${post.commentsCount}", color = ThemeTextGray, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------- 5. EXTRA SERVICES -----------------
+@Composable
+fun ExtraServicesScreen(viewModel: TroosViewModel) {
+    val activeRescue by viewModel.activeRoadsideRescue.collectAsState()
+    val activeMech by viewModel.activeMobileMechanicRequest.collectAsState()
+    val context = LocalContext.current
+    var loc by remember { mutableStateOf("") }
+
+    val shops = listOf(
+        Pair("مركز تروس المعتمد للخدمة الفائقة", "مدينة نصر، محور المشير • تقييم 4.9"),
+        Pair("سول غيار وإصدار بجاج الأصلي", "الدقي، شارع التحرير • تقييم 4.8")
+    )
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = if (activeRescue) ThemePrimaryRed else ThemeCard),
+                border = BorderStroke(2.dp, ThemePrimaryRed)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(imageVector = Icons.Default.Warning, tint = if (activeRescue) Color.White else ThemePrimaryRed, contentDescription = "SOS")
+                        Column {
+                            Text("مركز الإغاثة والإنقاذ السريع بمصر • Roadside SOS", fontWeight = FontWeight.Bold, color = if (activeRescue) Color.White else ThemeTextWhite)
+                            Text("طلب فوري لونش إنقاذ وإغاثة مع سحب الدراجة وتوصيلها لأقرب شريك فني لتروس.", color = if (activeRescue) Color.White.copy(alpha = 0.8f) else ThemeTextGray, fontSize = 11.sp)
+                        }
+                    }
+
+                    if (!activeRescue) {
+                        TextField(value = loc, onValueChange = { loc = it }, placeholder = { Text("حدد موقعك الحالي أو الطريق بدقة...") }, modifier = Modifier.fillMaxWidth())
+                        Button(
+                            onClick = {
+                                if (loc.isNotBlank()) {
+                                    viewModel.triggerRoadsideRescue()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemePrimaryRed),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("استدعاء ونش إنقاذ فوري عاجل", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Button(
+                            onClick = { viewModel.triggerRoadsideRescue() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = ThemePrimaryRed),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("إلغاء نداء الاستغاثة وسحب الونش", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("حجز ميكانيكي منزل دليفري متنقل • On-Demand Mechanic", fontWeight = FontWeight.Bold, color = ThemeTextWhite)
+                    Text("نقوم بإرسال ميكانيكي متنقل فني مفحوص وموثق من تروس لعمل الصيانات الدورية عتبة منزلك.", color = ThemeTextGray, fontSize = 11.sp)
+
+                    if (activeMech == null) {
+                        Button(
+                            onClick = { viewModel.triggerMobileMechanicRequest("القاهرة الجديدة") },
+                            colors = ButtonDefaults.buttonColors(containerColor = ThemeAccentGold, contentColor = Color.Black),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("اطلب فحص وميكانيكي متنقل الآن", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Text("تم استلام طلبك ومندوب تروس الدعم يقترب منك للتنسيق!", color = ThemeAccentGold, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Icon(imageVector = Icons.Default.Info, tint = ThemeAccentGold, contentDescription = null)
+                        Text("التقسيط بفائدة 0%", fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 12.sp)
+                        Text("إمكانية تقسيط الصياني وسلع الغيار حتى 12 شهر.", color = ThemeTextGray, fontSize = 10.sp)
+                    }
+                }
+                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Icon(imageVector = Icons.Default.Lock, tint = ThemeIceBlue, contentDescription = null)
+                        Text("عقد التأمين الحصري", fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 12.sp)
+                        Text("تغطية دراجتك النارية ضد الحوادث والسرقة بأقل اشتراكات وعقد حصري.", color = ThemeTextGray, fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("الورش المعتمدة وشركاء قطع الغيار بمصر:", fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 13.sp)
+        }
+
+        items(shops) { shop ->
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard)) {
+                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.Place, tint = ThemePrimaryRed, contentDescription = null)
+                    Column {
+                        Text(shop.first, fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 13.sp)
+                        Text(shop.second, color = ThemeTextGray, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------- 6. PITCH DECK -----------------
+@Composable
+fun PitchDeckScreen(selected: Int, onSelect: (Int) -> Unit) {
+    val tabs = listOf("Vision", "Business Model", "Compatibility Engine", "Monetization", "SWOT Analysis", "Roadmap")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard), border = BorderStroke(1.dp, ThemePrimaryRed.copy(alpha = 0.4f))) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("حقيبة دراسة الجدوى وتأسيس تروس كـ Unicorn بمصر لتقديمه للمستثمرين", fontWeight = FontWeight.Black, color = ThemePrimaryRed, fontSize = 14.sp)
+                Text("خطة استراتيجية محكمة لاختراق ريادة الأعمال وحجم السوق الأفريقي بـ 1 مليار دولار", color = ThemeTextGray, fontSize = 11.sp)
+            }
+        }
+
+        ScrollableTabRow(
+            selectedTabIndex = selected,
+            containerColor = ThemeSurface,
+            contentColor = ThemePrimaryRed,
+            edgePadding = 8.dp,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selected]),
+                    color = ThemePrimaryRed
+                )
+            }
+        ) {
+            tabs.forEachIndexed { idx, title ->
+                Tab(selected = selected == idx, onClick = { onSelect(idx) }, text = { Text(title, fontSize = 11.sp, fontWeight = FontWeight.Bold) })
+            }
+        }
+
+        Card(modifier = Modifier.weight(1f).fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard)) {
+            LazyColumn(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                when (selected) {
+                    0 -> {
+                        item {
+                            Text("1. رؤية شركة تروس الرياضية • Vision", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("أن نقود النظام البيئي الرقمي الأضخم لقطع غيار الموتوسيكلات والخدمات اللوجستية والإنقاذ السريع في مصر خلال 3 سنوات، ومن ثم التوسع في الشرق الأوسط وحوض النيل بأكثر من 30 مليون قائد مركبة تحت مظلة تكنولوجيا تروس الذكية والتمكين التكنولوجي ميكانيكيًا وماليًا بمصر.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text("2. رسالة العمل الفنية • Mission", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("رقمنة وتحديث الفنيين وتجار قطع الغيار والورش التقليدية وتزويدهم بمدخلات ومخرجات سلاسل الإمداد الموثوقة والذكية، وتوفير تجربة خالية من المخاطر وآمنة تضمن سلامة أصحاب الدراجات وعيوب صيانة الطرقات.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                        }
+                    }
+                    1 -> {
+                        item {
+                            Text("3. تفصيل أطراف النظام البيئي الشامل • Ecosystem Members", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("تروس ليست متجرًا عاديا محدود الأطراف. نحن Ecosystem يضم الميكانيكية، صغار الورش، شركات الشحن واللوجستيات السريعة، تجار ومستوردي قطع الغيار، وشركات التأمين بمصر لتفادي الوسطاء والفاقد المالي مع تزويد الورش ببرامج تسعير جملة B2B ذكي (15% خصم) واحتساب نقاط الصيانة.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                        }
+                    }
+                    2 -> {
+                        item {
+                            Text("4. محرك قياس التوافق والذكاء الذاتي • Compatibility Engine", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("أكبر عائق شراء يواجهه المستهلك هو التخوف من عدم توافق السلعة المختارة أو عدم خبرة الفني بالماركات الجديدة. نظامنا يعالج هذا عبر محرك الفحص المتكامل الذي يقيد البحث التلقائي بمدخلات دقيقة: (الماركة • الموديل الدقيق • سنة الصنع) وتصفية الكتالوج أوتوماتيكيًا بالخلفية لضمان توافق آمن بنسبة 100%.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                        }
+                    }
+                    3 -> {
+                        item {
+                            Text("5. مصادر الإيرادات الخمسة الكبرى • Monetization Matrix", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("تعتمد مصادر ربحية المنصة على:\n1. هامش عمولة مبيعات الكتالوج المعتمد.\n2. رسوم طلب ميكانيكي دليفري للمنزل.\n3. رسوم إعلانات واشتراكات التجار والورش للظهور في الصدارة.\n4. عمولات تقسيط السلع الكبيرة بالتعاون مع البنوك والشركاء.\n5. اشتراكات عقود الإنقاذ والتأمين الحصرية على الطريق لشاحنات الإعانة بمصر.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                        }
+                    }
+                    4 -> {
+                        item {
+                            Text("6. تحليل SWOT الاستراتيجي • Strategic Analysis", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("• نقاط القوة: استخدام Google Gemini الذكي للفحص البصري الفوري وتحديد العطل، وتصفيات محرك التوافق.\n• نقاط الضعف: احتياج الفنيين لتدريب رقمي بسيط مستمر.\n• الفرص: النمو الانفجاري لخدمات التوصيل والدليفري في منطقة الشرق الأوسط.\n• التهديدات: تقلب سلاسل الإمداد العالمية ومشاكل الاستيراد - نتفاداها بدعم الموردين وتطبيق الشراكات الاستراتيجية بمصر.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                        }
+                    }
+                    5 -> {
+                        item {
+                            Text("7. ميزانية و خطة اختراق السوق المليونية • Roadmap Strategy", fontWeight = FontWeight.Bold, color = ThemePrimaryRed, fontSize = 15.sp)
+                            Text("• العام الأول: تغطية إمداد القاهرة والجيزة بضم 4000 ورشة وتفعيل قنوات الشحن ونضام B2B العادل.\n• العام الثاني والثالث: الانتشار في المحافظات بمصر والوصول لـ 1,000,000 مستخدم مع إطلاق الميكانيكي المتنقل.\n• الأعوام التالية: الخروج الإقليمي وحكم السوق الأفريقي بـ كينيا، نيجيريا، وإثيوبيا.", color = ThemeTextWhite, fontSize = 13.sp, lineHeight = 21.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------- 7. ADMIN PANEL -----------------
+@Composable
+fun AdminPanelScreen(viewModel: TroosViewModel) {
+    val context = LocalContext.current
+    val products by viewModel.allProducts.collectAsState()
+    val orders by viewModel.ordersList.collectAsState()
+
+    var name by remember { mutableStateOf("") }
+    var arName by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var brand by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var year by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard), border = BorderStroke(1.dp, ThemePrimaryRed.copy(alpha = 0.5f))) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(imageVector = Icons.Default.Lock, tint = ThemePrimaryRed, contentDescription = "آدمن")
+                    Column {
+                        Text("بوابة إدارة كتالوج قطع الغيار وتوافق الذاكرة والمخزون بمصر", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = ThemePrimaryRed)
+                        Text("إضافة غيار، ربط دراجات متوافقة، ومراقبة طلبات الشحن اللوجيستي المجمعة لحظة بلحظة.", color = ThemeTextGray, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("أضف قطعة غيار مخصصة للكتالوج الآن:", color = ThemePrimaryRed, fontWeight = FontWeight.Bold)
+
+                    TextField(value = arName, onValueChange = { arName = it }, placeholder = { Text("الاسم باللغة العربية (فلتر هواء معدل...)") }, modifier = Modifier.fillMaxWidth())
+                    TextField(value = name, onValueChange = { name = it }, placeholder = { Text("الاسم باللغة الإنجليزية (Performance Air Filter)") }, modifier = Modifier.fillMaxWidth())
+                    TextField(value = price, onValueChange = { price = it }, placeholder = { Text("السعر ج.م") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextField(value = brand, onValueChange = { brand = it }, placeholder = { Text("الماركة المتوافقة (Honda...)") }, modifier = Modifier.weight(1f))
+                        TextField(value = model, onValueChange = { model = it }, placeholder = { Text("الموديل المتوافق (CBR...)") }, modifier = Modifier.weight(1f))
+                    }
+
+                    TextField(value = year, onValueChange = { year = it }, placeholder = { Text("سنة الصنع المتوافقة (2023...)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    TextField(value = desc, onValueChange = { desc = it }, placeholder = { Text("المواصفات الفنية ومقاساتها...") }, modifier = Modifier.fillMaxWidth())
+
+                    Button(
+                        onClick = {
+                            if (arName.isNotBlank() && price.isNotBlank() && brand.isNotBlank()) {
+                                viewModel.adminAddProduct(
+                                    name = name.ifBlank { arName },
+                                    arabicName = arName,
+                                    category = "كهرباء",
+                                    price = price.toDoubleOrNull() ?: 100.0,
+                                    brand = brand,
+                                    model = model,
+                                    year = year.toIntOrNull() ?: 2022,
+                                    description = desc,
+                                    stock = 25
+                                )
+                                arName = ""
+                                name = ""
+                                price = ""
+                                brand = ""
+                                model = ""
+                                year = ""
+                                desc = ""
+                                Toast.makeText(context, "تم إدراج الصنف في قنوات محرك التوافق الفوري بنجاح وعرضه للمستهلك!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemePrimaryRed),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("اعتماد وإدراج القطعة بالمخازن الفورية", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("طلبات الشحن النشطة وتتبع السائقين بمصر (${orders.size}):", fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 13.sp)
+        }
+
+        if (orders.isEmpty()) {
+            item {
+                Text("لا توجد طلبات معلقة حالياً بمصر. قم بإجراء طلب من المتجر وجربه!", color = ThemeTextGray, fontSize = 11.sp, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+            }
+        } else {
+            items(orders) { o ->
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeCard)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("طلب شحن رقم #${o.id + 1000} • جاري تجهيز الشحنة", color = ThemeTextWhite, fontWeight = FontWeight.Bold)
+                        Text("تاريخ المعاملة: ${o.orderDate}", color = ThemeTextGray, fontSize = 11.sp)
+                        Text("عدد الغيارات المطلوبة: ${o.itemsCount} قطع • إجمالي الدفع: ${String.format("%,.1f", o.totalPrice)} ج.م", color = ThemeAccentGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ----------------- 8. SHOPPING CART OVERLAY DIALOG -----------------
+@Composable
+fun CartOverlayDialog(viewModel: TroosViewModel, onDismiss: () -> Unit) {
+    val cart by viewModel.cartItems.collectAsState()
+    val allProds by viewModel.allProducts.collectAsState()
+    val b2b by viewModel.isB2BMode.collectAsState()
+    val context = LocalContext.current
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(imageVector = Icons.Default.ShoppingCart, tint = ThemePrimaryRed, contentDescription = null)
+                Text("المشتريات المحجوزة بسلتك الحالية", fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 15.sp)
+            }
+        },
+        containerColor = ThemeCard,
+        text = {
+            if (cart.isEmpty()) {
+                Text("سلتك خاوية حالياً. توجه للمتجر واختر قطع الغيار المتوافقة مع طراز دراجتك.", color = ThemeTextGray, fontSize = 12.sp, textAlign = TextAlign.Center)
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 240.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(cart) { item ->
+                        val matched = allProds.find { it.id == item.productId }
+                        if (matched != null) {
+                            val priceToUse = if (b2b) matched.price * 0.85 else matched.price
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = ThemeSurface)) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(matched.arabicName, fontWeight = FontWeight.Bold, color = ThemeTextWhite, fontSize = 12.sp)
+                                        Text("الكمية: ${item.quantity} • الإجمالي: ${String.format("%,.1f", priceToUse * item.quantity)} ج.م", color = ThemePrimaryRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    IconButton(onClick = { viewModel.removeFromCart(matched.id) }) {
+                                        Icon(imageVector = Icons.Default.Delete, contentDescription = "حذف", tint = ThemePrimaryRed, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (cart.isNotEmpty()) {
+                val totalSum = cart.sumOf { item ->
+                    val matched = allProds.find { it.id == item.productId }
+                    val priceToUse = if (b2b) (matched?.price ?: 0.0) * 0.85 else (matched?.price ?: 0.0)
+                    priceToUse * item.quantity
+                }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("إجمالي التكلفة الشاملة: ${String.format("%,.1f", totalSum)} ج.م", color = ThemeAccentGold, fontWeight = FontWeight.Black, fontSize = 14.sp, modifier = Modifier.align(Alignment.End))
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = {
+                            viewModel.completeCheckout()
+                            onDismiss()
+                            Toast.makeText(context, "تمت عملية الشراء وحجز السائق ومندوب التوصيل بنجاح!", Toast.LENGTH_LONG).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemePrimaryRed),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("تأكيد وحجز المعاملة أونلاين بمصر", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("إغلاق السلة", color = ThemeTextGray)
+            }
+        }
+    )
+}
+
+
+--------------------------------------------------------------------------------
+2. com/example/ui/TroosViewModel.kt
+--------------------------------------------------------------------------------
+package com.example.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.data.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+class TroosViewModel(application: Application) : AndroidViewModel(application) {
+    private val database = TroosDatabase.getDatabase(application)
+    private val dao = database.dao()
+    private val geminiRepository = GeminiRepository()
+
+    // 1. Core State Flows
+    val allProducts: StateFlow<List<ProductEntity>> = dao.getAllProducts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val cartItems: StateFlow<List<CartItemEntity>> = dao.getCartItems()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val myBikes: StateFlow<List<BikeProfileEntity>> = dao.getMyBikes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val communityPosts: StateFlow<List<CommunityPostEntity>> = dao.getCommunityPosts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val ordersList: StateFlow<List<OrderEntity>> = dao.getOrders()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 2. Filter & Compatibility State Flows for search/shop
+    private val _selectedBrand = MutableStateFlow("")
+    val selectedBrand = _selectedBrand.asStateFlow()
+
+    private val _selectedModel = MutableStateFlow("")
+    val selectedModel = _selectedModel.asStateFlow()
+
+    private val _selectedYear = MutableStateFlow<Int?>(null)
+    val selectedYear = _selectedYear.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery = _searchQuery.asStateFlow()
+
+    val filteredProducts: StateFlow<List<ProductEntity>> = combine(
+        allProducts, _selectedBrand, _selectedModel, _selectedYear, _searchQuery
+    ) { products, brand, model, year, search ->
+        products.filter { p ->
+            val matchBrand = brand.isEmpty() || p.brand.equals(brand, ignoreCase = true)
+            val matchModel = model.isEmpty() || p.model.equals(model, ignoreCase = true)
+            val matchYear = year == null || p.year == year
+            val matchSearch = search.isEmpty() || 
+                    p.name.contains(search, ignoreCase = true) || 
+                    p.arabicName.contains(search, ignoreCase = true) ||
+                    p.category.contains(search, ignoreCase = true)
+            
+            matchBrand && matchModel && matchYear && matchSearch
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // 3. User B2B workshop activation state
+    private val _isB2BMode = MutableStateFlow(false)
+    val isB2BMode = _isB2BMode.asStateFlow()
+
+    // Workshop special profile & tiers
+    private val _workshopLoyaltyPoints = MutableStateFlow(2450)
+    val workshopLoyaltyPoints = _workshopLoyaltyPoints.asStateFlow()
+
+    // 4. AI Chat / Diagnostics State
+    private val _aiChatHistory = MutableStateFlow<List<Pair<String, Boolean>>>(
+        listOf(Pair("أهلاً بك في مساعد تروس الميكانيكي الذكي! أنا هنا لمساعدتك في فحص الموتوسيكل الخاص بك وتحديد قطع الغيار المتوافقة. ما المشكلة التي تواجهها اليوم؟", false))
+    )
+    val aiChatHistory = _aiChatHistory.asStateFlow()
+
+    private val _aiDiagnosticResult = MutableStateFlow<String?>(null)
+    val aiDiagnosticResult = _aiDiagnosticResult.asStateFlow()
+
+    private val _isAiLoading = MutableStateFlow(false)
+    val isAiLoading = _isAiLoading.asStateFlow()
+
+    // 5. Value added services states
+    private val _activeRoadsideRescue = MutableStateFlow(false)
+    val activeRoadsideRescue = _activeRoadsideRescue.asStateFlow()
+
+    private val _activeMobileMechanicRequest = MutableStateFlow<String?>(null) // e.g. "REQUEST_PENDING"
+    val activeMobileMechanicRequest = _activeMobileMechanicRequest.asStateFlow()
+
+    init {
+        // Prepopulate products database if empty
+        viewModelScope.launch {
+            allProducts.first().let { current ->
+                if (current.isEmpty()) {
+                    val initialProducts = listOf(
+                        ProductEntity(
+                            name = "Honda CBR Front Brembo Brake Pads",
+                            arabicName = "تيل فرامل بريمبو أمامى فئة CBR",
+                            category = "فرامل",
+                            price = 1250.00,
+                            oldPrice = 1400.00,
+                            imageUrl = "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format",
+                            brand = "Honda",
+                            model = "CBR 150",
+                            year = 2022,
+                            description = "تيل فرامل رياضي أصلي ماركة Brembo يقدم كفاءة توقف استثنائية وعمر افتراضي طويل تحت الضغوط الحرارية لـ CBR 150.",
+                            stock = 15,
+                            isOffer = true
+                        ),
+                        ProductEntity(
+                            name = "Honda CBR Performance Oil Filter",
+                            arabicName = "فلتر زيت رياضي K&N أصلي لـ CBR",
+                            category = "فلاتر",
+                            price = 550.00,
+                            imageUrl = "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format",
+                            brand = "Honda",
+                            model = "CBR 150",
+                            year = 2022,
+                            description = "فلتر زيت عالي التدفق مع صمام أمان مدمج، يضمن حماية المحرك وتوصيل مثالي لزيت هوندا سينثيتيك.",
+                            stock = 25
+                        ),
+                        ProductEntity(
+                            name = "Yamaha R6 Laser Iridium NGK Spark Plugs",
+                            arabicName = "طقم بوجيهات ليزر إيريديوم ياماها R6",
+                            category = "كهرباء",
+                            price = 2800.00,
+                            oldPrice = 3300.00,
+                            imageUrl = "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?auto=format",
+                            brand = "Yamaha",
+                            model = "R6",
+                            year = 2020,
+                            description = "بوجيهات NGK Laser Iridium لسرعة استجابة المحرك وتعديل توقيت الشرارة، مما يزيد من إنتاجية الـ R6 الحصانية.",
+                            stock = 9,
+                            isOffer = true
+                        ),
+                        ProductEntity(
+                            name = "Yamaha R6 Michelin Pilot Tyre Set",
+                            arabicName = "طقم إطارات ميشلان بايلوت R6 كاب",
+                            category = "إطارات",
+                            price = 11500.00,
+                            imageUrl = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format",
+                            brand = "Yamaha",
+                            model = "R6",
+                            year = 2020,
+                            description = "طقم إطارات ميشلان بايلوت توفر ثباتاً ممتازاً في المنعطفات الحادة على سرعات الحلبات وخيار ممتاز للشارع والمضمار.",
+                            stock = 4
+                        ),
+                        ProductEntity(
+                            name = "DID Pro Gold Drive Chain Set Pulsar 200",
+                            arabicName = "طقم جنزير ناقل حركة دي آي دي ياباني للنبض",
+                            category = "سحب وجر",
+                            price = 2950.00,
+                            imageUrl = "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format",
+                            brand = "Bajaj",
+                            model = "Pulsar 200",
+                            year = 2021,
+                            description = "جنزير مطور بحلقات O-ring شديدة التحمل لمنع تسرب الشحوم وحماية العجلات الخلفية من الانزلاق لـ Pulsar 200.",
+                            stock = 12
+                        ),
+                        ProductEntity(
+                            name = "Bajaj Pulsar Rear Shock Absorber Pair",
+                            arabicName = "طقم مساعدين خلفيين هيدروليك نبض",
+                            category = "مساعدين ونظام تعليق",
+                            price = 3800.00,
+                            oldPrice = 4250.00,
+                            imageUrl = "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?auto=format",
+                            brand = "Bajaj",
+                            model = "Pulsar 200",
+                            year = 2021,
+                            description = "مساعد خلفي غازي لتعديل امتصاص الصدمات في الطرق غير الممهدة، مناسب للمشاوير الطويلة والعمل الشاق.",
+                            stock = 8,
+                            isOffer = true
+                        ),
+                        ProductEntity(
+                            name = "Vespa Primavera Carbon Performance Drive Belt",
+                            arabicName = "سير نقل حركة كربون رياضي فيسبا",
+                            category = "ناقل حركة",
+                            price = 1950.00,
+                            imageUrl = "https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format",
+                            brand = "Vespa",
+                            model = "Primavera 150",
+                            year = 2023,
+                            description = "سير فتييس أصلي معزز بألياف الكربون للفيسبا بريمافيرا، عمر خدمة مضاعف ونقل مباشر للقوة لجميع السرعات.",
+                            stock = 18
+                        ),
+                        ProductEntity(
+                            name = "Keeway Superlight Air Filter Assembly",
+                            arabicName = "فلتر هواء متكامل ميتاليك كي واي",
+                            category = "فلاتر",
+                            price = 450.00,
+                            imageUrl = "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format",
+                            brand = "Keeway",
+                            model = "Superlight",
+                            year = 2019,
+                            description = "فلتر تنقية هواء عالي السعة لمنع تسرب ذرات الغبار وحماية الكاربراتير الخاص بمحركات كي واي سوبرلايت.",
+                            stock = 30
+                        ),
+                        ProductEntity(
+                            name = "Keeway Superlight Genuine Exhaust Wrap",
+                            arabicName = "عازل حرارة شكمان كي واي الفاخر",
+                            category = "إكسسوارات",
+                            price = 890.00,
+                            imageUrl = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format",
+                            brand = "Keeway",
+                            model = "Superlight",
+                            year = 2019,
+                            description = "طقم لفافات حماية وعزل الشكمان من فرط الحرارة بتصميم رياضي كلاسيكي يناسب دراجات كروزر سوبرلايت.",
+                            stock = 5,
+                            isOffer = true
+                        )
+                    )
+                    dao.insertProducts(initialProducts)
+                }
+            }
+
+            // Put a baseline post in community if empty
+            communityPosts.first().let { current ->
+                if (current.isEmpty()) {
+                    val defaultPosts = listOf(
+                        CommunityPostEntity(
+                            author = "أمجد الدالي - رابطة CBR مصر",
+                            avatar = "https://images.unsplash.com/photo-1449426468159-d96dbf08f19f?auto=format",
+                            content = "شباب، تم تجربة تيل فرامل بريمبو الجديد على هوندا CBR 150 موديل 2022 المتوفر على تطبيق تروس، الفرامل فرقت 180 درجة والثبات عالي جداً! أرشحه بشدة.",
+                            likesCount = 42,
+                            commentsCount = 12
+                        ),
+                        CommunityPostEntity(
+                            author = "الأسطورة صابر ميكانيكي شبرا",
+                            avatar = "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format",
+                            content = "لكل اللي بيسألوا عن بوجيهات الإيريديوم مع موتوسيكلات الراليات الكبيرة من هوندا أو ياماها، البوجيهات دي مش بس بتديك توفير بنزين، دي كمان بتمنع تكتكة الماكينة خالص الصبح في الساقعة. وفرناها جملة للميكانيكية هنا بسعر مميز.",
+                            likesCount = 98,
+                            commentsCount = 27
+                        )
+                    )
+                    for (post in defaultPosts) {
+                        dao.insertPost(post)
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Compatibility logic
+    fun setFilterBrand(brand: String) {
+        _selectedBrand.value = brand
+        _selectedModel.value = "" // reset child when parent shifts
+    }
+
+    fun setFilterModel(model: String) {
+        _selectedModel.value = model
+    }
+
+    fun setFilterYear(year: Int?) {
+        _selectedYear.value = year
+    }
+
+    fun setQuery(q: String) {
+        _searchQuery.value = q
+    }
+
+    fun clearFilters() {
+        _selectedBrand.value = ""
+        _selectedModel.value = ""
+        _selectedYear.value = null
+        _searchQuery.value = ""
+    }
+
+    // 7. Cart & Product Actions
+    fun addToCart(productId: Int, quantity: Int = 1) {
+        viewModelScope.launch {
+            dao.insertCartItem(CartItemEntity(productId = productId, quantity = quantity))
+        }
+    }
+
+    fun removeFromCart(productId: Int) {
+        viewModelScope.launch {
+            dao.deleteCartItem(productId)
+        }
+    }
+
+    fun completeCheckout() {
+        viewModelScope.launch {
+            val currentCart = cartItems.value
+            val currentProducts = allProducts.value
+            if (currentCart.isEmpty()) return@launch
+
+            var grandTotal = 0.0
+            var itemCount = 0
+            for (cartItem in currentCart) {
+                val matched = currentProducts.find { it.id == cartItem.productId }
+                if (matched != null) {
+                    val priceToUse = if (_isB2BMode.value) matched.price * 0.85 else matched.price // 15% discount for B2B wholesale
+                    grandTotal += priceToUse * cartItem.quantity
+                    itemCount += cartItem.quantity
+                }
+            }
+
+            // Create Order
+            val newOrder = OrderEntity(
+                orderDate = java.text.DateFormat.getDateTimeInstance().format(java.util.Date()),
+                itemsCount = itemCount,
+                totalPrice = grandTotal,
+                status = "جاري مراجعة طلبك"
+            )
+            dao.insertOrder(newOrder)
+            dao.clearCart() // empty cart after checkout
+        }
+    }
+
+    // 8. B2B & Wholesale Controls
+    fun toggleB2BMode() {
+        _isB2BMode.value = !_isB2BMode.value
+    }
+
+    fun addWorkshopPoints(points: Int) {
+        _workshopLoyaltyPoints.value += points
+    }
+
+    // 9. Admin Controls
+    fun adminAddProduct(
+        name: String,
+        arabicName: String,
+        category: String,
+        price: Double,
+        brand: String,
+        model: String,
+        year: Int,
+        description: String,
+        stock: Int
+    ) {
+        viewModelScope.launch {
+            val newProduct = ProductEntity(
+                name = name,
+                arabicName = arabicName,
+                category = category,
+                price = price,
+                imageUrl = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format",
+                brand = brand,
+                model = model,
+                year = year,
+                description = description,
+                stock = stock
+            )
+            dao.insertProducts(listOf(newProduct))
+        }
+    }
+
+    // 10. Garage Actions
+    fun addBikeToGarage(brand: String, model: String, year: Int, odometer: Int, lastService: String, notes: String) {
+        viewModelScope.launch {
+            val bike = BikeProfileEntity(
+                brand = brand,
+                model = model,
+                year = year,
+                odometer = odometer,
+                lastServiceDate = lastService,
+                notes = notes
+            )
+            val bikeId = dao.insertBike(bike)
+            // Add automated next maintenance reminders
+            dao.insertMaintenanceEvent(
+                MaintenanceEventEntity(
+                    bikeId = bikeId.toInt(),
+                    title = "تغيير زيت المحرك وفلتر الزيت القادم",
+                    dueDate = "بعد 3,000 كم (أو خلال شهرين)"
+                )
+            )
+            dao.insertMaintenanceEvent(
+                MaintenanceEventEntity(
+                    bikeId = bikeId.toInt(),
+                    title = "فحص تيل الفرامل وضبط الجنزير",
+                    dueDate = "بعد 5,000 كم"
+                )
+            )
+        }
+    }
+
+    fun deleteBikeFromGarage(id: Int) {
+        viewModelScope.launch {
+            dao.deleteBike(id)
+        }
+    }
+
+    // 11. AI Mechanic Chat Action (Gemini API Integration)
+    fun askAiMechanic(userQuestion: String) {
+        if (userQuestion.isBlank()) return
+        
+        // Add to history list immediately
+        val historyList = _aiChatHistory.value.toMutableList()
+        historyList.add(Pair(userQuestion, true))
+        _aiChatHistory.value = historyList
+        _isAiLoading.value = true
+
+        viewModelScope.launch {
+            val promptContext = """
+                أنت هو 'ميكانيكي تروس الذكي'، خبير فني محترف في صيانة وإصلاح الموتوسيكلات بجميع أنواعها وموديلاتها (مثل هوندا، ياماها، باجاج، كي واي، تي في إس، هاري ديفيدسون والفيسبا الإيطالية) في السوق المصري والأفريقي.
+                العملاء يسألونك عن مشاكل فنية، أعطال، تكتكات، رعشة، سخونة، أو رغبة في تحسين وتعديل الدراجات.
+                يرجى الالتزام بالرد الدقيق باللغة العربية بأسلوب فني واثق، سهل الفهم، وعملي جداً، مع تجنب الكلام النظري العام. اقترح قطع غيار مطابقة محددة للمشكلة، وقدّم نصائح لسلامة السائق، ووجهه للورش المتخصصة في خريطة تروس عند اللزوم.
+                السؤال الحالي من المستخدم: "$userQuestion"
+            """.trimIndent()
+
+            val response = geminiRepository.getGeminiResponse(promptContext)
+            
+            val updatedList = _aiChatHistory.value.toMutableList()
+            updatedList.add(Pair(response, false))
+            _aiChatHistory.value = updatedList
+            _isAiLoading.value = false
+        }
+    }
+
+    // 11b. Image/Audio Diagnostic scanning via Gemini
+    fun diagnosticPhotoUpload(photoDescription: String, base64Image: String) {
+        _isAiLoading.value = true
+        _aiDiagnosticResult.value = null
+
+        viewModelScope.launch {
+            val visualPrompt = """
+                تحتوي هذه الصورة على قطعة غيار موتوسيكل بها خلل أو مستخدم يحتاج للتعرف عليها.
+                الوصف المرفق بالصورة: "$photoDescription".
+                قم بتقديم تحليل فني فوري كخبير ميكانيكي لقطع غيار الدراجات النارية:
+                1. التعرف على اسم القطعة الدقيق باللغة العربية والإنجليزية.
+                2. الفحص البصري وتحديد مواطن الضرر التقريبي (كالتآكل، التشققات، أو نقص التشحيم).
+                3. التوصية بالقطع البديلة المناسبة ونوعية المعادن/الخامات المفضلة كبديل، ومستويات الأسعار التقديرية بالجنيه المصري.
+                4. الرمز التقريبي لمدى خطورة استمرار استخدامها (آمن مؤقتاً / يجب التغيير فوراً / تالف كلياً).
+            """.trimIndent()
+
+            val answer = geminiRepository.analyzePhoto(visualPrompt, base64Image)
+            _aiDiagnosticResult.value = answer
+            _isAiLoading.value = false
+        }
+    }
+
+    fun clearDiagnosticState() {
+        _aiDiagnosticResult.value = null
+    }
+
+    // 12. Community actions
+    fun createCommunityPost(authorName: String, content: String) {
+        if (content.isBlank()) return
+        viewModelScope.launch {
+            val newPost = CommunityPostEntity(
+                author = authorName,
+                avatar = "https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format",
+                content = content,
+                likesCount = 0,
+                commentsCount = 0
+            )
+            dao.insertPost(newPost)
+        }
+    }
+
+    // 13. Value-Added Service requests
+    fun triggerRoadsideRescue() {
+        _activeRoadsideRescue.value = !_activeRoadsideRescue.value
+    }
+
+    fun triggerMobileMechanicRequest(locationDesc: String) {
+        if (locationDesc.isBlank()) {
+            _activeMobileMechanicRequest.value = null
+        } else {
+            _activeMobileMechanicRequest.value = "DISPATCHING" // will trigger dispatch animations in UI
+        }
+    }
+
+    fun resetMobileMechanicState() {
+        _activeMobileMechanicRequest.value = null
+    }
+}
+
+
+--------------------------------------------------------------------------------
+3. com/example/ui/theme/Color.kt
+--------------------------------------------------------------------------------
+package com.example.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val Purple80 = Color(0xFFD0BCFF)
+val PurpleGrey80 = Color(0xFFCCC2DC)
+val Pink80 = Color(0xFFEFB8C8)
+
+val Purple40 = Color(0xFF6650a4)
+val PurpleGrey40 = Color(0xFF625b71)
+val Pink40 = Color(0xFF7D5260)
+
+
+--------------------------------------------------------------------------------
+4. com/example/ui/theme/Theme.kt
+--------------------------------------------------------------------------------
+package com.example.ui.theme
+
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
+
+private val DarkColorScheme =
+  darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
+
+private val LightColorScheme =
+  lightColorScheme(
+    primary = Purple40,
+    secondary = PurpleGrey40,
+    tertiary = Pink40,
+  )
+
+@Composable
+fun MyApplicationTheme(
+  darkTheme: Boolean = isSystemInDarkTheme(),
+  // Dynamic color is available on Android 12+
+  dynamicColor: Boolean = true,
+  content: @Composable () -> Unit,
+) {
+  val colorScheme =
+    when {
+      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+        val context = LocalContext.current
+        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+      }
+
+      darkTheme -> DarkColorScheme
+      else -> LightColorScheme
+    }
+
+  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+}
+
+
+--------------------------------------------------------------------------------
+5. com/example/ui/theme/Type.kt
+--------------------------------------------------------------------------------
+package com.example.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+// Set of Material typography styles to start with
+val Typography =
+  Typography(
+    bodyLarge =
+      TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp,
+      )
+  )
+
+
+--------------------------------------------------------------------------------
+6. res/values/strings.xml
+--------------------------------------------------------------------------------
+<resources>
+    <string name="app_name">Troos</string>
+</resources>
