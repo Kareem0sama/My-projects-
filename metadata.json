@@ -1,0 +1,6 @@
+{
+  "name": "Troos (تروس)",
+  "description": "Troos is a premier, world-class B2B and B2C motorcycle spare parts ecosystem customized for Egypt and Africa, with direct compatibility engines, live mechanic logs, interactive workshops, and built-in Gemini API diagnostic tools.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

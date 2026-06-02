@@ -1,0 +1,23 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Gear outer teeth structure -->
+    <path
+        android:fillColor="#FF3B30"
+        android:pathData="M54,14 L54,24 M54,84 L54,94 M14,54 L24,54 M84,54 L94,54 M25.7,25.7 L32.8,32.8 M75.2,75.2 L82.3,82.3 M25.7,82.3 L32.8,75.2 M75.2,25.7 L82.3,32.8"
+        android:strokeWidth="10"
+        android:strokeColor="#FF3B30"
+        android:strokeLineCap="round" />
+    <!-- Gear body outer rim -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,24 A30,30 0 1 1 53.9,24 Z"
+        android:strokeWidth="10"
+        android:strokeColor="#FF3B30" />
+    <!-- Center gear hole & inner spokes -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,41 A13,13 0 1 1 53.9,41 Z" />
+</vector>
